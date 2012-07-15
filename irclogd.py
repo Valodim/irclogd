@@ -8,6 +8,11 @@ from twisted.internet import reactor, protocol
 import input.udp
 
 class PseudoUser:
+    knownInputs = {
+            'udp' : input.udp.UdpInputFactory,
+            'fifo' : None,
+        }
+
     def __init__(self, server, name):
         name = name.split()[0]
 
@@ -15,10 +20,41 @@ class PseudoUser:
         self.name = name
         self.channels = { }
 
-        self.fullname = "{}!{}@{}".format(self.name, "unknown", server.hostname)
+        # no input at the beginning
+        self.input = None
 
-    def command(self, msg):
-        self.msg("Echo: " + str(msg))
+        self.fullname = "{}!{}@{}".format(self.name, "none", server.hostname)
+
+    def command(self, line):
+        line = line.split(None, 1)
+
+        # otherwise - is it a method?
+        method = getattr(self, "cmd_%s" % line[0], None)
+        if method is not None:
+            method(line[1])
+            return
+
+        self.notice("Unknown command: " + line[0])
+
+    def cmd_input(self, line):
+        params = line.split()
+        if self.input is not None:
+            self.notice("This user already has an input! Use `reset' to reset it.")
+            return
+
+        if params[0] not in PseudoUser.knownInputs or PseudoUser.knownInputs[params[0]] is None:
+            self.notice("Unknown or unsupported input: " + params[0])
+            return
+
+        self.notice("Switching user input to " + params[0])
+        try:
+            proto = PseudoUser.knownInputs[params[0]](self, params[1:])
+        except Exception as e:
+            self.notice("Failed switching input!")
+            self.notice("Exception: " + str(e))
+        else:
+            self.input = proto
+            self.fullname = "{}!{}@{}".format(self.name, params[0], self.server.hostname)
 
     def invite(self, channel):
         self.channels[channel.name] = channel
@@ -37,13 +73,24 @@ class PseudoUser:
     def msg(self, msg, channel = None):
         if channel is None:
             for name in self.channels:
-                self.channels[name].content(msg, self.fullname)
+                self.channels[name].msg(msg, self.fullname)
             return
 
         # sanity check!
         if channel.name not in self.channels:
             print >> sys.stderr, "printing on a chan we're not in??"
-        channel.content(msg, self.fullname)
+        channel.msg(msg, self.fullname)
+
+    def notice(self, msg, channel = None):
+        if channel is None:
+            for name in self.channels:
+                self.channels[name].notice(msg, self.fullname)
+            return
+
+        # sanity check!
+        if channel.name not in self.channels:
+            print >> sys.stderr, "printing on a chan we're not in??"
+        channel.notice(msg, self.fullname)
 
     def destroy(self):
         """
@@ -51,18 +98,17 @@ class PseudoUser:
             and should be overwritten to do cleanup work, most importantly
             remove it from the reactor.
         """
-        pass
+        if self.input is not None:
+            self.input.destroy()
+
+        # delete ourself from the pusers reference here
+        del self.server.pusers[self.name]
 
 class Channel:
-    knownTypes = { 
-            'udp' : input.udp.UdpInputFactory,
-            'fifo' : None,
-        }
 
     def __init__(self, server, name, key = None):
         self.name = name
         self.server = server
-        self.type = None
         self.pusers = { }
 
         print "Creating channel:", name
@@ -99,11 +145,11 @@ class Channel:
                 self.server.sendMessage("PART", self.name, frm="", prefix=user.fullname)
             del self.pusers[user.name]
 
-    def msg(self, msg):
-        self.server.sendMessage('NOTICE', irc.lowQuote(msg), frm=self.name)
+    def msg(self, msg, prefix = None):
+        self.server.sendMessage('PRIVMSG', irc.lowQuote(msg), frm=self.name, prefix=prefix if prefix is not None else self.server.hostname)
 
-    def content(self, msg, prefix):
-        self.server.sendMessage('PRIVMSG', irc.lowQuote(msg), frm=self.name, prefix=prefix)
+    def notice(self, msg, prefix):
+        self.server.sendMessage('NOTICE', irc.lowQuote(msg), frm=self.name, prefix=prefix)
 
     def cmd(self, line):
         line = line.split(None, 1)
@@ -124,26 +170,8 @@ class Channel:
 
         print 'cmd to chan', line
 
-    def cmd_type(self, line):
-        params = line.split()
-        if self.type is not None:
-            self.msg("This channel already has a type! Use `reset' to reset channel.")
-            return
-
-        if params[0] not in Channel.knownTypes or Channel.knownTypes[params[0]] is None:
-            self.msg("Unknown or unsupported channel type: " + params[0])
-            return
-
-        self.msg("Switching channel type to " + params[0])
-        try:
-            proto = Channel.knownTypes[params[0]](self, params[1:])
-            self.type = proto
-        except Exception as e:
-            self.msg("Failed switching channel type!")
-            self.msg("Exception: " + str(e))
-
     def cmd_help(self, params):
-        self.msg("Halp!")
+        self.notice("Halp!")
 
 class IrclogdServer(irc.IRC):
 
