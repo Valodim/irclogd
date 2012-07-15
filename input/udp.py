@@ -23,7 +23,6 @@ class UdpInput(protocol.DatagramProtocol):
         self.transport.loseConnection()
 
 def UdpInputFactory(channel, params):
-    print params
     try:
         port = int(params[0])
     except:
