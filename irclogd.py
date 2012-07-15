@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+from datetime import datetime
 
 from twisted.words.protocols import irc
 from twisted.internet import reactor, protocol
@@ -8,6 +9,8 @@ from twisted.internet import reactor, protocol
 from User import InputUser
 
 debug = False
+
+port = 6669
 
 motd = """
 This is irclogd, started at {starttime}, listening on {port}.
@@ -27,7 +30,7 @@ Usage:
 
         /invite fifosource1 &mychan
         /msg fifosource1 input fifo /path/to/fifo
-"""
+""".format(starttime=datetime.now(), port=port)
 
 class Channel:
 
@@ -298,5 +301,5 @@ if __name__ == "__main__":
     factory = protocol.Factory()
     factory.protocol = IrclogdServer
 
-    reactor.listenTCP(6667, factory, interface='localhost')
+    reactor.listenTCP(port, factory, interface='localhost')
     reactor.run()
