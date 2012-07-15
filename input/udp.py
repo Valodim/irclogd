@@ -28,7 +28,7 @@ class UdpInput(protocol.DatagramProtocol):
         self.user.notice("Stopped listening on UDP port " + str(self.port))
 
     def datagramReceived(self, data, (host, port)):
-        if host not in self.acceptedHosts:
+        if self.acceptedHosts is not None and host not in self.acceptedHosts:
             return
 
         lines = data.split("\n")
