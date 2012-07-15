@@ -9,6 +9,26 @@ from User import InputUser
 
 debug = False
 
+motd = """
+This is irclogd, started at {starttime}, listening on {port}.
+
+Usage:
+    JOIN a channel, INVITE a virtual user to it, and send them an input
+    directive to start listening on some source. You can arbitrarily name
+    virtual users, and invite them to multiple channels.
+    To get rid of a virtual user, KICK them from all channels they are
+    currently in, or send them the "die" command.
+
+    Example session:
+        /join &mychan
+
+        /invite udpsource1 &mychan
+        /msg udpsource1 input udp 12345
+
+        /invite fifosource1 &mychan
+        /msg fifosource1 input fifo /path/to/fifo
+"""
+
 class Channel:
 
     def __init__(self, server, name, key = None):
@@ -260,7 +280,8 @@ class IrclogdServer(irc.IRC):
     def irc_USER(self, prefix, params):
         self.user = params
         self.sendMessage(irc.RPL_MOTDSTART, "- irclogd Message of the day -")
-        self.sendMessage(irc.RPL_MOTD, "what's up?")
+        for l in motd.split("\n"):
+            self.sendMessage(irc.RPL_MOTD, l)
         self.sendMessage(irc.RPL_ENDOFMOTD, "End of /MOTD command")
 
     def irc_NICK(self, prefix, params):
