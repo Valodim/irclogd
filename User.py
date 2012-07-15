@@ -1,5 +1,5 @@
 
-import input.udp
+import input.udp, input.fifo
 
 class PseudoUser:
 
@@ -77,7 +77,7 @@ class PseudoUser:
 class InputUser(PseudoUser):
     knownInputs = {
             'udp' : input.udp.UdpInputFactory,
-            'fifo' : None,
+            'fifo' : input.fifo.FifoInputFactory,
         }
 
     def __init__(self, server, name):
