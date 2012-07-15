@@ -1,4 +1,6 @@
 
+from twisted.words.protocols import irc
+
 import input.udp, input.fifo
 
 class PseudoUser:
