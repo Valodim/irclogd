@@ -5,41 +5,50 @@ from twisted.internet import reactor, protocol
 
 import input.udp
 
+class Input:
+    pass
+
 class Channel:
     channelTypes = [ 'udp', 'fifo' ]
 
-    def __init__(self, name, key = None):
+    def __init__(self, server, name, key = None):
         self.name = name
+        self.server = server
 
         print "Creating channel:", name
 
     # reply when a user joins this channel
-    def join(self, server):
-        self.topic(server)
-        self.names(server)
+    def join(self):
+        self.topic()
+        self.names()
         # self.msg(server, "Type help for a list of channel commands!")
 
-    def part(self, server):
+    def part(self):
         pass
 
-    def mode(self, server):
-        server.sendMessage(irc.RPL_CHANNELMODEIS, self.name, "", "")
+    def mode(self):
+        self.server.sendMessage(irc.RPL_CHANNELMODEIS, self.name, "", "")
 
-    def topic(self, server):
-        server.sendMessage(irc.RPL_TOPIC, self.name, irc.lowQuote("topic time!"))
+    def topic(self):
+        self.server.sendMessage(irc.RPL_TOPIC, self.name, irc.lowQuote("topic time!"))
 
-    def names(self, server):
-        server.sendMessage(irc.RPL_NAMREPLY, self.name, irc.lowQuote(server.nick))
-        server.sendMessage(irc.RPL_ENDOFNAMES, self.name, irc.lowQuote("End of /NAMES list"))
+    def names(self):
+        self.server.sendMessage(irc.RPL_NAMREPLY, self.name, irc.lowQuote(self.server.nick))
+        self.server.sendMessage(irc.RPL_ENDOFNAMES, self.name, irc.lowQuote("End of /NAMES list"))
 
-    def msg(self, server, msg):
-        server.sendMessage('PRIVMSG', irc.lowQuote(msg), frm=self.name)
+    def msg(self, msg):
+        self.server.sendMessage('PRIVMSG', irc.lowQuote(msg), frm=self.name)
 
-    def cmd(self, command):
-        print 'cmd to chan', command
+    def cmd(self, line):
+        line = line.split(None, 1)
+        method = getattr(self, "cmd_%s" % line[0], None)
+        if method is not None:
+            method(line[1:])
 
-    def cmd_type(self, command):
-        pass
+        print 'cmd to chan', line
+
+    def cmd_help(self, params):
+        self.msg("Halp!")
 
 class IrclogdServer(irc.IRC):
 
@@ -76,28 +85,28 @@ class IrclogdServer(irc.IRC):
             self.sendMessage(irc.ERR_NOTONCHANNEL)
             return
 
-        self.channels[params[0]].mode(self)
+        self.channels[params[0]].mode()
 
     def irc_TOPIC(self, prefix, params):
         if params[0] not in self.channels:
             self.sendMessage(irc.ERR_NOTONCHANNEL)
             return
 
-        self.channels[params[0]].topic(self)
+        self.channels[params[0]].topic()
 
     def irc_NAMES(self, prefix, params):
         if params[0] not in self.channels:
             self.sendMessage(irc.ERR_NOTONCHANNEL)
             return
 
-        self.channels[params[0]].names(self)
+        self.channels[params[0]].names()
 
     def irc_PRIVMSG(self, prefix, params):
         if params[0] not in self.channels:
             self.sendMessage(irc.ERR_CANNOTSENDTOCHAN)
             return
 
-        self.channels[params[0]].cmd(params[1:])
+        self.channels[params[0]].cmd(params[-1])
 
     def irc_USER(self, prefix, params):
         self.user = params
@@ -111,9 +120,9 @@ class IrclogdServer(irc.IRC):
             return
 
         if params[0] not in self.channels:
-            c = Channel(params[0])
+            c = Channel(self, params[0])
             self.channels[params[0]] = c
-            c.join(self)
+            c.join()
 
     def irc_PART(self, prefix, params):
         if params[0][0] != "&":
@@ -121,7 +130,7 @@ class IrclogdServer(irc.IRC):
             return
 
         if params[0] in self.channels:
-            self.channels[params[0]].part(self)
+            self.channels[params[0]].part()
             del self.channels[params[0]]
 
     def irc_PING(self, prefix, params):
