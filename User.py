@@ -4,6 +4,13 @@ from twisted.words.protocols import irc
 import input.udp, input.fifo
 
 class PseudoUser:
+    """
+        Instances of this class are virtual users on the server.
+
+        This is a base class providing only basic functionality, allowing the
+        user to summon and dismiss virtual users on the fly by using INVITEs
+        and KICKs.
+    """
 
     def __init__(self, server, name):
         name = name.split()[0]
@@ -12,7 +19,19 @@ class PseudoUser:
         self.name = name
         self.channels = { }
 
-    def cmd(self, line):
+    def cmd(self, line, type = 0):
+        """
+            Called when a message is sent to the virtual user. This calls the
+            according cmd_subcommand, where subcommand is the first word of the
+            received line.
+
+            The type parameter specifies the kind of message received:
+                0: public msg in a channel
+                1: notice
+                2: privmsg
+            The cmd should try to reply the same way.
+
+        """
         line = line.split(None, 1)
 
         # otherwise - is it a method?
@@ -28,6 +47,14 @@ class PseudoUser:
         channel.registerUser(self)
 
     def leave(self, channel, kick=False):
+        """
+            Called when the virtual user should leave a channel. This usually
+            happens when it is KICKed by the user, or the user PARTed from the
+            channel.
+
+            This method should make sure that if the virtual user is no longer
+            on any channel, the destroy() method is called.
+        """
         if channel.name not in self.channels:
             return
         del self.channels[channel.name]
@@ -38,6 +65,9 @@ class PseudoUser:
             self.destroy()
 
     def msg(self, msg, channel = None):
+        """
+            This method multicasts a msg to all channels the user is in.
+        """
         if channel is None:
             for name in self.channels:
                 self.channels[name].msg(msg, self.fullname())
@@ -49,6 +79,9 @@ class PseudoUser:
         channel.msg(msg, self.fullname())
 
     def notice(self, msg, channel = None):
+        """
+            This method multicasts a notice to all channels the user is in.
+        """
         if channel is None:
             for name in self.channels:
                 self.channels[name].notice(msg, self.fullname())
@@ -68,15 +101,34 @@ class PseudoUser:
 
     def destroy(self):
         """
-            This method is called when the user is no longer on any channels,
-            and should be overwritten to do cleanup work, most importantly
-            remove it from the reactor.
+            This method is called when the user is no longer on any channels.
+
+            It should be overwritten to do cleanup work, most importantly
+            remove any reactor callbacks.
         """
 
         # delete ourself from the pusers reference here
         del self.server.pusers[self.name]
 
 class InputUser(PseudoUser):
+    """
+        A specialized type of PseudoUser, which supports input from external
+        sources.
+
+        Using the input command, an InputUser can be associated with some kind
+        of external source, reporting all messages from this source as
+        PRIVMSGSs to all channels the user is in.
+
+        At this point, supported input calls are:
+            > input udp port [addr,..]
+            Listens for messages on the specified udp port. If the optional
+            addr argument is given, all input from hosts not in this
+            comma-seperated list is dropped.
+
+            > input fifo fifopath
+            Listens on a fifo, which must already exist.
+    """
+
     knownInputs = {
             'udp' : input.udp.UdpInputFactory,
             'fifo' : input.fifo.FifoInputFactory,
@@ -115,6 +167,10 @@ class InputUser(PseudoUser):
         return "{}!{}@{}".format(self.name, "input/none" if self.input is None else "input/{}".format(self.input.name), self.server.hostname)
 
     def destroy(self):
+        """
+           Overriding this to forward the destroy() call to a potential input.
+        """
+
         if self.input is not None:
             self.input.destroy()
 

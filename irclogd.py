@@ -16,7 +16,31 @@ class Channel:
 
         print "Creating channel:", name
 
-    # reply when a user joins this channel
+    # channel interfacing methods
+
+    def msg(self, msg, prefix = None):
+        self.server.sendMessage('PRIVMSG', irc.lowQuote(msg), frm=self.name, prefix=prefix if prefix is not None else self.server.hostname)
+
+    def notice(self, msg, prefix):
+        self.server.sendMessage('NOTICE', irc.lowQuote(msg), frm=self.name, prefix=prefix)
+
+    # user management
+
+    def registerUser(self, user):
+        if user.name not in self.pusers:
+            self.pusers[user.name] = user
+            self.server.sendMessage("JOIN", self.name, frm="", prefix=user.fullname())
+
+    def unregisterUser(self, user, kick=False):
+        if user.name in self.pusers:
+            if kick:
+                self.server.sendMessage("KICK", user.name, '', frm=self.name)
+            else:
+                self.server.sendMessage("PART", self.name, frm="", prefix=user.fullname())
+            del self.pusers[user.name]
+
+    # channel information callbacks
+
     def join(self):
         self.topic()
         self.names()
@@ -35,24 +59,7 @@ class Channel:
         self.server.sendMessage(irc.RPL_NAMREPLY, self.name, irc.lowQuote(','.join([self.server.nick] + self.pusers.keys() )))
         self.server.sendMessage(irc.RPL_ENDOFNAMES, self.name, irc.lowQuote("End of /NAMES list"))
 
-    def registerUser(self, user):
-        if user.name not in self.pusers:
-            self.pusers[user.name] = user
-            self.server.sendMessage("JOIN", self.name, frm="", prefix=user.fullname())
-
-    def unregisterUser(self, user, kick=False):
-        if user.name in self.pusers:
-            if kick:
-                self.server.sendMessage("KICK", user.name, '', frm=self.name)
-            else:
-                self.server.sendMessage("PART", self.name, frm="", prefix=user.fullname())
-            del self.pusers[user.name]
-
-    def msg(self, msg, prefix = None):
-        self.server.sendMessage('PRIVMSG', irc.lowQuote(msg), frm=self.name, prefix=prefix if prefix is not None else self.server.hostname)
-
-    def notice(self, msg, prefix):
-        self.server.sendMessage('NOTICE', irc.lowQuote(msg), frm=self.name, prefix=prefix)
+    # command callbacks
 
     def cmd(self, line):
         line = line.split(None, 1)
@@ -77,6 +84,10 @@ class Channel:
         self.notice("Halp!")
 
 class IrclogdServer(irc.IRC):
+    """
+        This is one log server connection. It maintains a number of Channels
+        and PseudoUsers, which most of the commands will be forwarded to.
+    """
 
     def dataReceived(self, data):
         print data
@@ -88,6 +99,15 @@ class IrclogdServer(irc.IRC):
         self.pusers = { }
 
     def sendMessage(self, command, *parameter_list, **kwargs):
+        """
+            This is a generic method for sending messages. It mostly wraps
+            IRC.sendMessage, adding a thin convenience layer:
+                - If no prefix kwarg is given, the server's hostname will be
+                  used as prefix.
+                - If no frm kwarg is given, the user's nick will be inserted as
+                  first argument.
+                - The last argument is prefixed with a colon.
+        """
 
         # add nick to param list
         if 'frm' not in kwargs:
@@ -106,6 +126,29 @@ class IrclogdServer(irc.IRC):
 
         # forwad to parent method
         return irc.IRC.sendMessage(self, command, *parameter_list, **kwargs)
+
+    # Channel management callbacks
+
+    def irc_JOIN(self, prefix, params):
+        for chan in params[0].split(','):
+            if chan[0] != "&":
+                self.sendMessage(irc.ERR_NOSUCHCHANNEL)
+                return
+
+            if chan not in self.channels:
+                c = Channel(self, chan)
+                self.channels[chan] = c
+                c.join()
+
+    def irc_PART(self, prefix, params):
+        for chan in params[0].split(','):
+            if chan[0] != "&" or chan not in self.channels:
+                self.sendMessage(irc.ERR_NOSUCHCHANNEL)
+                return
+
+            if chan in self.channels:
+                self.channels[chan].part()
+                del self.channels[chan]
 
     def irc_MODE(self, prefix, params):
         for chan in params[0].split(','):
@@ -131,66 +174,12 @@ class IrclogdServer(irc.IRC):
 
             self.channels[chan].names()
 
+    # PseudoUser management callbacks
+
     def irc_WHO(self, prefix, params):
         if params[0] in self.pusers:
             self.pusers[params[0]].who()
             return
-
-    def irc_PRIVMSG(self, prefix, params):
-        # missing RFC: multicast
-
-        # send to channel?
-        if params[0] in self.channels:
-            self.channels[params[0]].cmd(params[-1])
-            return
-
-        # send to user?
-        if params[0] in self.pusers:
-            self.pusers[params[0]].cmd(params[-1])
-            return
-
-        # didn't send anything? give an error
-        self.sendMessage(irc.ERR_NORECIPIENT)
-
-    def irc_USER(self, prefix, params):
-        self.user = params
-        self.sendMessage(irc.RPL_MOTDSTART, "- irclogd Message of the day -")
-        self.sendMessage(irc.RPL_MOTD, "what's up?")
-        self.sendMessage(irc.RPL_ENDOFMOTD, "End of /MOTD command")
-
-    def irc_JOIN(self, prefix, params):
-        for chan in params[0].split(','):
-            if chan[0] != "&":
-                self.sendMessage(irc.ERR_NOSUCHCHANNEL)
-                return
-
-            if chan not in self.channels:
-                c = Channel(self, chan)
-                self.channels[chan] = c
-                c.join()
-
-    def irc_PART(self, prefix, params):
-        for chan in params[0].split(','):
-            if chan[0] != "&" or chan not in self.channels:
-                self.sendMessage(irc.ERR_NOSUCHCHANNEL)
-                return
-
-            if chan in self.channels:
-                self.channels[chan].part()
-                del self.channels[chan]
-
-    def irc_PING(self, prefix, params):
-        self.sendMessage("PONG", params)
-
-    def irc_PONG(self, prefix, params):
-        pass
-
-    def irc_NICK(self, prefix, params):
-        self.nick = params[0]
-
-    def irc_QUIT(self, prefix, params):
-        self.sendMessage("QUIT", *params)
-        self.transport.loseConnection()
 
     def irc_INVITE(self, prefix, params):
         # not enough parameters?
@@ -239,6 +228,47 @@ class IrclogdServer(irc.IRC):
 
         # kick him out!
         self.pusers[params[1]].leave(self.channels[params[0]], True)
+
+    # Other and generic callbacks
+
+    def irc_PRIVMSG(self, prefix, params):
+        """
+            Callback for PRIVMSG. These are either forwarded as commands to
+            channels, or users.
+        """
+        # missing RFC: multicast
+
+        # send to channel?
+        if params[0] in self.channels:
+            self.channels[params[0]].cmd(params[-1])
+            return
+
+        # send to user?
+        if params[0] in self.pusers:
+            self.pusers[params[0]].cmd(params[-1])
+            return
+
+        # didn't send anything? give an error
+        self.sendMessage(irc.ERR_NORECIPIENT)
+
+    def irc_PING(self, prefix, params):
+        self.sendMessage("PONG", params)
+
+    def irc_PONG(self, prefix, params):
+        pass
+
+    def irc_USER(self, prefix, params):
+        self.user = params
+        self.sendMessage(irc.RPL_MOTDSTART, "- irclogd Message of the day -")
+        self.sendMessage(irc.RPL_MOTD, "what's up?")
+        self.sendMessage(irc.RPL_ENDOFMOTD, "End of /MOTD command")
+
+    def irc_NICK(self, prefix, params):
+        self.nick = params[0]
+
+    def irc_QUIT(self, prefix, params):
+        self.sendMessage("QUIT", *params)
+        self.transport.loseConnection()
 
     def irc_unknown(self, prefix, command, params):
         print >> sys.stderr, "unkown msg", prefix, command, params
