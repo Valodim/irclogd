@@ -7,14 +7,14 @@ from twisted.internet import reactor, protocol
 
 from User import InputUser
 
+debug = False
+
 class Channel:
 
     def __init__(self, server, name, key = None):
         self.name = name
         self.server = server
         self.pusers = { }
-
-        print "Creating channel:", name
 
     # channel interfacing methods
 
@@ -78,8 +78,6 @@ class Channel:
             method(line[1])
             return
 
-        print 'cmd to chan', line
-
     def cmd_help(self, params):
         self.notice("Halp!")
 
@@ -90,7 +88,8 @@ class IrclogdServer(irc.IRC):
     """
 
     def dataReceived(self, data):
-        print data
+        if debug:
+            print data
         irc.IRC.dataReceived(self, data)
 
     def connectionMade(self):
@@ -122,7 +121,8 @@ class IrclogdServer(irc.IRC):
         if len(parameter_list) > 0:
             parameter_list[-1] = ":" + parameter_list[-1]
 
-        print kwargs['prefix'], command, parameter_list
+        if debug:
+            print kwargs['prefix'], command, parameter_list
 
         # forwad to parent method
         return irc.IRC.sendMessage(self, command, *parameter_list, **kwargs)
