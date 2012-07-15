@@ -9,11 +9,15 @@ class Input:
     pass
 
 class Channel:
-    channelTypes = [ 'udp', 'fifo' ]
+    knownTypes = { 
+            'udp' : input.udp.UdpInputFactory,
+            'fifo' : None,
+        }
 
     def __init__(self, server, name, key = None):
         self.name = name
         self.server = server
+        self.type = None
 
         print "Creating channel:", name
 
@@ -37,15 +41,36 @@ class Channel:
         self.server.sendMessage(irc.RPL_ENDOFNAMES, self.name, irc.lowQuote("End of /NAMES list"))
 
     def msg(self, msg):
+        self.server.sendMessage('NOTICE', irc.lowQuote(msg), frm=self.name)
+
+    def content(self, msg):
         self.server.sendMessage('PRIVMSG', irc.lowQuote(msg), frm=self.name)
 
     def cmd(self, line):
         line = line.split(None, 1)
         method = getattr(self, "cmd_%s" % line[0], None)
         if method is not None:
-            method(line[1:])
+            method(line[1])
 
         print 'cmd to chan', line
+
+    def cmd_type(self, line):
+        params = line.split()
+        if self.type is not None:
+            self.msg("This channel already has a type! Use `reset' to reset channel.")
+            return
+
+        if params[0] not in Channel.knownTypes or Channel.knownTypes[params[0]] is None:
+            self.msg("Unknown or unsupported channel type: " + params[0])
+            return
+
+        self.msg("Switching channel type to " + params[0])
+        try:
+            proto = Channel.knownTypes[params[0]](self, params[1:])
+            self.type = proto
+        except Exception as e:
+            self.msg("Failed switching channel type!")
+            self.msg("Exception: " + str(e))
 
     def cmd_help(self, params):
         self.msg("Halp!")
