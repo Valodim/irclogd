@@ -233,5 +233,5 @@ if __name__ == "__main__":
     factory = protocol.Factory()
     factory.protocol = IrclogdServer
 
-    reactor.listenTCP(6667, factory)
+    reactor.listenTCP(6667, factory, interface='localhost')
     reactor.run()
