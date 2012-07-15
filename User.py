@@ -32,15 +32,24 @@ class PseudoUser:
             The cmd should try to reply the same way.
 
         """
-        line = line.split(None, 1)
+        line = line.split()
 
         # otherwise - is it a method?
         method = getattr(self, "cmd_%s" % line[0], None)
         if method is not None:
-            method(line[1])
+            method(line[1:])
             return
 
         self.notice("Unknown command: " + line[0])
+
+    def cmd_die(self, params):
+        """
+            Removes a user from all channels and frees its resources.
+        """
+        self.notice("Dying..")
+
+        while len(self.channels) > 0:
+            self.leave(self.channels.values()[0])
 
     def invite(self, channel):
         self.channels[channel.name] = channel
@@ -140,8 +149,7 @@ class InputUser(PseudoUser):
         # no input at the beginning
         self.input = None
 
-    def cmd_input(self, line):
-        params = line.split()
+    def cmd_input(self, params):
         if self.input is not None:
             self.notice("This user already has an input! Use `reset' to reset it.")
             return
