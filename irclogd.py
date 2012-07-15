@@ -144,6 +144,7 @@ class IrclogdServer(irc.IRC):
 
     def irc_QUIT(self, prefix, params):
         self.sendMessage("QUIT", *params)
+        self.transport.loseConnection()
 
     def irc_unknown(self, prefix, command, params):
         print "unkown msg", prefix, command, params
