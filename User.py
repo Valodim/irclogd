@@ -1,3 +1,4 @@
+import sys
 
 from twisted.words.protocols import irc
 
@@ -150,6 +151,12 @@ class InputUser(PseudoUser):
         self.input = None
 
     def cmd_input(self, params):
+        """
+            Associates this virtual user with an input, using the constructors
+            from the knonwnInputs static variable.
+
+            If an input is already set, an error is returned.
+        """
         if self.input is not None:
             self.notice("This user already has an input! Use `reset' to reset it.")
             return
@@ -158,14 +165,27 @@ class InputUser(PseudoUser):
             self.notice("Unknown or unsupported input: " + params[0])
             return
 
-        self.notice("Switching user input to " + params[0])
+        self.notice("Setting user input to " + params[0])
         try:
             proto = InputUser.knownInputs[params[0]](self, params[1:])
         except Exception as e:
-            self.notice("Failed switching input!")
+            self.notice("Failed setting input!")
             self.notice("Exception: " + str(e))
         else:
             self.input = proto
+
+    def cmd_reset(self, params):
+        """
+            Resets the input, cleaning up all listening resources - if there is one.
+        """
+        if self.input is None:
+            self.notice("There is no input to reset.")
+            return
+
+        # make sure this is destroyed
+        self.input.destroy()
+        self.notice("Removed {} input..".format(self.input.name))
+        self.input = None
 
     def who(self):
         self.server.sendMessage(irc.RPL_WHOREPLY, self.channels.keys()[0], "input/none" if self.input is None else "input/{}".format(self.input.name), self.server.hostname, self.server.hostname, self.name, "H", "1 {}".format("InputUser"))
