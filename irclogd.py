@@ -16,8 +16,6 @@ class PseudoUser:
         self.name = name
         self.channels = { }
 
-        self.fullname = "{}!{}@{}".format(self.name, "pseudo", server.hostname)
-
     def command(self, line):
         line = line.split(None, 1)
 
@@ -46,24 +44,31 @@ class PseudoUser:
     def msg(self, msg, channel = None):
         if channel is None:
             for name in self.channels:
-                self.channels[name].msg(msg, self.fullname)
+                self.channels[name].msg(msg, self.fullname())
             return
 
         # sanity check!
         if channel.name not in self.channels:
             print >> sys.stderr, "printing on a chan we're not in??"
-        channel.msg(msg, self.fullname)
+        channel.msg(msg, self.fullname())
 
     def notice(self, msg, channel = None):
         if channel is None:
             for name in self.channels:
-                self.channels[name].notice(msg, self.fullname)
+                self.channels[name].notice(msg, self.fullname())
             return
 
         # sanity check!
         if channel.name not in self.channels:
             print >> sys.stderr, "printing on a chan we're not in??"
-        channel.notice(msg, self.fullname)
+        channel.notice(msg, self.fullname())
+
+    def who(self):
+        self.server.sendMessage(irc.RPL_WHOREPLY, self.channels.keys()[0], "pseudo", self.server.hostname, self.server.hostname, self.name, "H", "1 {}".format("PseudoUser"))
+        self.server.sendMessage(irc.RPL_ENDOFWHO)
+
+    def fullname(self):
+        return "{}!{}@{}".format(self.name, "pseudo", self.server.hostname)
 
     def destroy(self):
         """
@@ -83,9 +88,6 @@ class InputUser(PseudoUser):
 
     def __init__(self, server, name):
         PseudoUser.__init__(self, server, name)
-
-        # more precise fullname
-        self.fullname = "{}!{}@{}".format(self.name, "input/none", server.hostname)
 
         # no input at the beginning
         self.input = None
@@ -108,14 +110,15 @@ class InputUser(PseudoUser):
             self.notice("Exception: " + str(e))
         else:
             self.input = proto
-            self.fullname = "{}!{}@{}".format(self.name, params[0], self.server.hostname)
+
+    def who(self):
+        self.server.sendMessage(irc.RPL_WHOREPLY, self.channels.keys()[0], "input/none" if self.input is None else "input/{}".format(self.input.name), self.server.hostname, self.server.hostname, self.name, "H", "1 {}".format("InputUser"))
+        self.server.sendMessage(irc.RPL_ENDOFWHO)
+
+    def fullname(self):
+        return "{}!{}@{}".format(self.name, "input/none" if self.input is None else "input/{}".format(self.input.name), self.server.hostname)
 
     def destroy(self):
-        """
-            This method is called when the user is no longer on any channels,
-            and should be overwritten to do cleanup work, most importantly
-            remove it from the reactor.
-        """
         if self.input is not None:
             self.input.destroy()
 
@@ -152,14 +155,14 @@ class Channel:
     def registerUser(self, user):
         if user.name not in self.pusers:
             self.pusers[user.name] = user
-            self.server.sendMessage("JOIN", self.name, frm="", prefix=user.fullname)
+            self.server.sendMessage("JOIN", self.name, frm="", prefix=user.fullname())
 
     def unregisterUser(self, user, kick=False):
         if user.name in self.pusers:
             if kick:
                 self.server.sendMessage("KICK", user.name, '', frm=self.name)
             else:
-                self.server.sendMessage("PART", self.name, frm="", prefix=user.fullname)
+                self.server.sendMessage("PART", self.name, frm="", prefix=user.fullname())
             del self.pusers[user.name]
 
     def msg(self, msg, prefix = None):
@@ -241,6 +244,11 @@ class IrclogdServer(irc.IRC):
             return
 
         self.channels[params[0]].names()
+
+    def irc_WHO(self, prefix, params):
+        if params[0] in self.pusers:
+            self.pusers[params[0]].who()
+            return
 
     def irc_PRIVMSG(self, prefix, params):
         if params[0] not in self.channels:

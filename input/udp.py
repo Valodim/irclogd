@@ -1,6 +1,7 @@
 from twisted.internet import reactor, protocol
 
 class UdpInput(protocol.DatagramProtocol):
+    name = "udp"
 
     def __init__(self, user, port, params):
         self.user = user
