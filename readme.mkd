@@ -1,0 +1,61 @@
+irclogd
+=======
+
+This is a simple irc gateway server, which can be used to listen for data from
+various sources.
+
+There is no buffering or state, data is only immediately forwarded. To add
+buffering capabilities, connect to the irc server using a bouncer. I recommend
+znc.
+
+Supported sources at this point:
+ - udp
+ - fifo
+
+
+Usage
+-----
+
+Start with python irclogd.py, connect to running server with any irc client. To
+change the listening port, edit irclogd.py.
+
+Join any channel with /join &channel or /join #channel. You can create virtual
+users by inviting them to any channel with /invite username &channel. You can
+remove them using /kick username. Virtual users can be in multiple channels, and
+will be automatically removed when they aren't in any.
+
+Each virtual user can have an input source, and will report the input from this
+source to all channels it is in.
+
+Virtual User Commands
+---------------------
+
+Virtual users support a number of commands. They can be either sent in any
+channel the user is in by directing it to them by name with a colon suffix, or
+as a privmsg.
+
+Available commands are:
+ - input: set an input source to listen on (see below)
+ - reset: stop listening and reset the input
+ - die: stops listening on input and removes the user from all channels
+
+Input Sources
+-------------
+
+At this point, there are two input sources: udp, and fifo.
+
+To create an udp input source, send an input command to a virtual user:
+    input udp port [addr,..]
+If an optional comma-seperate list of hosts is given, only messages from these
+hosts will be accepted.
+
+To create a fifo input source, send an input command to a virtual user:
+    input fifo /path/to/fifo
+The fifo must already exist, and be readable by the user.
+
+
+Status
+------
+
+At this point, irclogd is a small hack I wanted for personal use. I'm in the
+process of testing it, but it is by no means stable. Use at your own risk!
