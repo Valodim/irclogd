@@ -5,8 +5,40 @@ from twisted.internet import reactor, protocol
 
 import input.udp
 
-class Input:
-    pass
+class PseudoUser:
+    def __init__(self, server, name):
+        name = name.split()[0]
+
+        self.server = server
+        self.name = name
+        self.channels = { }
+
+        self.fullname = "{}!{}@{}".format(self.name, "unknown", server.hostname)
+
+    def command(self, msg):
+        print msg
+
+    def invite(self, channel):
+        self.channels[channel.name] = channel
+        channel.registerUser(self)
+
+    def leave(self, channel, kick=False):
+        if channel.name not in self.channels:
+            return
+        del self.channels[channel.name]
+        channel.unregisterUser(self, kick)
+
+        # no channels left? destwoy ourself!
+        if len(self.channels) is 0:
+            self.destroy()
+
+    def destroy(self):
+        """
+            This method is called when the user is no longer on any channels,
+            and should be overwritten to do cleanup work, most importantly
+            remove it from the reactor.
+        """
+        pass
 
 class Channel:
     knownTypes = { 
@@ -18,6 +50,7 @@ class Channel:
         self.name = name
         self.server = server
         self.type = None
+        self.pusers = { }
 
         print "Creating channel:", name
 
@@ -37,8 +70,21 @@ class Channel:
         self.server.sendMessage(irc.RPL_TOPIC, self.name, irc.lowQuote("topic time!"))
 
     def names(self):
-        self.server.sendMessage(irc.RPL_NAMREPLY, self.name, irc.lowQuote(self.server.nick))
+        self.server.sendMessage(irc.RPL_NAMREPLY, self.name, irc.lowQuote(','.join([self.server.nick] + self.pusers.keys() )))
         self.server.sendMessage(irc.RPL_ENDOFNAMES, self.name, irc.lowQuote("End of /NAMES list"))
+
+    def registerUser(self, user):
+        if user.name not in self.pusers:
+            self.pusers[user.name] = user
+            self.server.sendMessage("JOIN", self.name, frm="", prefix=user.fullname)
+
+    def unregisterUser(self, user, kick=False):
+        if user.name in self.pusers:
+            if kick:
+                self.server.sendMessage("KICK", user.name, '', frm=self.name)
+            else:
+                self.server.sendMessage("PART", self.name, frm="", prefix=user.fullname)
+            del self.pusers[user.name]
 
     def msg(self, msg):
         self.server.sendMessage('NOTICE', irc.lowQuote(msg), frm=self.name)
@@ -84,6 +130,7 @@ class IrclogdServer(irc.IRC):
     def connectionMade(self):
         irc.IRC.connectionMade(self)
         self.channels = { }
+        self.pusers = { }
 
     def sendMessage(self, command, *parameter_list, **kwargs):
 
@@ -100,7 +147,7 @@ class IrclogdServer(irc.IRC):
         if len(parameter_list) > 0:
             parameter_list[-1] = ":" + parameter_list[-1]
 
-        print command, parameter_list
+        print kwargs['prefix'], command, parameter_list
 
         # forwad to parent method
         return irc.IRC.sendMessage(self, command, *parameter_list, **kwargs)
@@ -170,6 +217,55 @@ class IrclogdServer(irc.IRC):
     def irc_QUIT(self, prefix, params):
         self.sendMessage("QUIT", *params)
         self.transport.loseConnection()
+
+    def irc_INVITE(self, prefix, params):
+        # not enough parameters?
+        if len(params) < 2:
+            self.sendMessage(irc.ERR_NEEDMOREPARAMS)
+            return
+
+        # channel doesn't exist? (NOT RFC COMPLICANT)
+        if params[1] not in self.channels:
+            self.sendMessage(irc.ERR_NOSUCHCHANNEL)
+            return
+
+        # already in the channel?
+        if params[0] in self.pusers and params[1] in self.pusers[params[0]].channels:
+            self.sendMessage(irc.ERR_USERONCHANNEL)
+            return
+
+        # at this point, there should be no reason why the user can't join the channel.
+
+        # does the pseudouser exist? if not, create him
+        if params[0] not in self.pusers:
+            self.pusers[params[0]] = PseudoUser(self, params[0])
+
+        # invite him over
+        self.pusers[params[0]].invite(self.channels[params[1]])
+        # send an ok
+        self.sendMessage(irc.RPL_INVITING)
+
+
+    def irc_KICK(self, prefix, params):
+        # not enough parameters?
+        if len(params) < 2:
+            self.sendMessage(irc.ERR_NEEDMOREPARAMS)
+            return
+
+        # channel doesn't exist?
+        if params[0] not in self.channels:
+            self.sendMessage(irc.ERR_NOSUCHCHANNEL)
+            return
+
+        # not even in the channel?
+        if params[1] not in self.pusers or params[0] not in self.pusers[params[1]].channels:
+            self.sendMessage(irc.ERR_NOTONCHANNEL)
+            return
+
+        # at this point, there should be no reason why the user can't be kicked from the channel.
+
+        # kick him out!
+        self.pusers[params[1]].leave(self.channels[params[0]], True)
 
     def irc_unknown(self, prefix, command, params):
         print "unkown msg", prefix, command, params
