@@ -20,16 +20,16 @@ class Channel:
     def join(self):
         self.topic()
         self.names()
-        # self.msg(server, "Type help for a list of channel commands!")
 
     def part(self):
-        pass
+        for u in self.pusers:
+            u.leave(self)
 
     def mode(self):
         self.server.sendMessage(irc.RPL_CHANNELMODEIS, self.name, "", "")
 
     def topic(self):
-        self.server.sendMessage(irc.RPL_TOPIC, self.name, irc.lowQuote("topic time!"))
+        self.server.sendMessage(irc.RPL_TOPIC, self.name, irc.lowQuote("dummy topic (maybe put some info here?)"))
 
     def names(self):
         self.server.sendMessage(irc.RPL_NAMREPLY, self.name, irc.lowQuote(','.join([self.server.nick] + self.pusers.keys() )))
@@ -157,7 +157,7 @@ class IrclogdServer(irc.IRC):
             c.join()
 
     def irc_PART(self, prefix, params):
-        if params[0][0] != "&":
+        if params[0][0] != "&" or params[0] not in self.channels:
             self.sendMessage(irc.ERR_NOSUCHCHANNEL)
             return
 
