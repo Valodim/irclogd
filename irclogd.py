@@ -8,10 +8,6 @@ from twisted.internet import reactor, protocol
 import input.udp
 
 class PseudoUser:
-    knownInputs = {
-            'udp' : input.udp.UdpInputFactory,
-            'fifo' : None,
-        }
 
     def __init__(self, server, name):
         name = name.split()[0]
@@ -20,10 +16,7 @@ class PseudoUser:
         self.name = name
         self.channels = { }
 
-        # no input at the beginning
-        self.input = None
-
-        self.fullname = "{}!{}@{}".format(self.name, "none", server.hostname)
+        self.fullname = "{}!{}@{}".format(self.name, "pseudo", server.hostname)
 
     def command(self, line):
         line = line.split(None, 1)
@@ -35,26 +28,6 @@ class PseudoUser:
             return
 
         self.notice("Unknown command: " + line[0])
-
-    def cmd_input(self, line):
-        params = line.split()
-        if self.input is not None:
-            self.notice("This user already has an input! Use `reset' to reset it.")
-            return
-
-        if params[0] not in PseudoUser.knownInputs or PseudoUser.knownInputs[params[0]] is None:
-            self.notice("Unknown or unsupported input: " + params[0])
-            return
-
-        self.notice("Switching user input to " + params[0])
-        try:
-            proto = PseudoUser.knownInputs[params[0]](self, params[1:])
-        except Exception as e:
-            self.notice("Failed switching input!")
-            self.notice("Exception: " + str(e))
-        else:
-            self.input = proto
-            self.fullname = "{}!{}@{}".format(self.name, params[0], self.server.hostname)
 
     def invite(self, channel):
         self.channels[channel.name] = channel
@@ -98,11 +71,55 @@ class PseudoUser:
             and should be overwritten to do cleanup work, most importantly
             remove it from the reactor.
         """
-        if self.input is not None:
-            self.input.destroy()
 
         # delete ourself from the pusers reference here
         del self.server.pusers[self.name]
+
+class InputUser(PseudoUser):
+    knownInputs = {
+            'udp' : input.udp.UdpInputFactory,
+            'fifo' : None,
+        }
+
+    def __init__(self, server, name):
+        PseudoUser.__init__(self, server, name)
+
+        # more precise fullname
+        self.fullname = "{}!{}@{}".format(self.name, "input/none", server.hostname)
+
+        # no input at the beginning
+        self.input = None
+
+    def cmd_input(self, line):
+        params = line.split()
+        if self.input is not None:
+            self.notice("This user already has an input! Use `reset' to reset it.")
+            return
+
+        if params[0] not in InputUser.knownInputs or InputUser.knownInputs[params[0]] is None:
+            self.notice("Unknown or unsupported input: " + params[0])
+            return
+
+        self.notice("Switching user input to " + params[0])
+        try:
+            proto = InputUser.knownInputs[params[0]](self, params[1:])
+        except Exception as e:
+            self.notice("Failed switching input!")
+            self.notice("Exception: " + str(e))
+        else:
+            self.input = proto
+            self.fullname = "{}!{}@{}".format(self.name, params[0], self.server.hostname)
+
+    def destroy(self):
+        """
+            This method is called when the user is no longer on any channels,
+            and should be overwritten to do cleanup work, most importantly
+            remove it from the reactor.
+        """
+        if self.input is not None:
+            self.input.destroy()
+
+        PseudoUser.destroy(self)
 
 class Channel:
 
@@ -290,7 +307,7 @@ class IrclogdServer(irc.IRC):
 
         # does the pseudouser exist? if not, create him
         if params[0] not in self.pusers:
-            self.pusers[params[0]] = PseudoUser(self, params[0])
+            self.pusers[params[0]] = InputUser(self, params[0])
 
         # invite him over
         self.pusers[params[0]].invite(self.channels[params[1]])
