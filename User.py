@@ -12,7 +12,7 @@ class PseudoUser:
         self.name = name
         self.channels = { }
 
-    def command(self, line):
+    def cmd(self, line):
         line = line.split(None, 1)
 
         # otherwise - is it a method?

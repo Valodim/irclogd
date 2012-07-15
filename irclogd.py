@@ -62,7 +62,7 @@ class Channel:
             if line[0][0:-1] not in self.pusers:
                 print >> sys.stderr, "Msg to nonexitant user: ", line[0][0:-1]
                 return
-            self.pusers[line[0][0:-1]].command(line[1])
+            self.pusers[line[0][0:-1]].cmd(line[1])
             return
 
         # otherwise - is it a method?
@@ -108,25 +108,28 @@ class IrclogdServer(irc.IRC):
         return irc.IRC.sendMessage(self, command, *parameter_list, **kwargs)
 
     def irc_MODE(self, prefix, params):
-        if params[0] not in self.channels:
-            self.sendMessage(irc.ERR_NOTONCHANNEL)
-            return
+        for chan in params[0].split(','):
+            if chan not in self.channels:
+                self.sendMessage(irc.ERR_NOTONCHANNEL)
+                return
 
-        self.channels[params[0]].mode()
+            self.channels[chan].mode()
 
     def irc_TOPIC(self, prefix, params):
-        if params[0] not in self.channels:
-            self.sendMessage(irc.ERR_NOTONCHANNEL)
-            return
+        for chan in params[0].split(','):
+            if chan not in self.channels:
+                self.sendMessage(irc.ERR_NOTONCHANNEL)
+                return
 
-        self.channels[params[0]].topic()
+            self.channels[chan].topic()
 
     def irc_NAMES(self, prefix, params):
-        if params[0] not in self.channels:
-            self.sendMessage(irc.ERR_NOTONCHANNEL)
-            return
+        for chan in params[0].split(','):
+            if chan not in self.channels:
+                self.sendMessage(irc.ERR_NOTONCHANNEL)
+                return
 
-        self.channels[params[0]].names()
+            self.channels[chan].names()
 
     def irc_WHO(self, prefix, params):
         if params[0] in self.pusers:
@@ -134,11 +137,20 @@ class IrclogdServer(irc.IRC):
             return
 
     def irc_PRIVMSG(self, prefix, params):
-        if params[0] not in self.channels:
-            self.sendMessage(irc.ERR_CANNOTSENDTOCHAN)
+        # missing RFC: multicast
+
+        # send to channel?
+        if params[0] in self.channels:
+            self.channels[params[0]].cmd(params[-1])
             return
 
-        self.channels[params[0]].cmd(params[-1])
+        # send to user?
+        if params[0] in self.pusers:
+            self.pusers[params[0]].cmd(params[-1])
+            return
+
+        # didn't send anything? give an error
+        self.sendMessage(irc.ERR_NORECIPIENT)
 
     def irc_USER(self, prefix, params):
         self.user = params
@@ -147,23 +159,25 @@ class IrclogdServer(irc.IRC):
         self.sendMessage(irc.RPL_ENDOFMOTD, "End of /MOTD command")
 
     def irc_JOIN(self, prefix, params):
-        if params[0][0] != "&":
-            self.sendMessage(irc.ERR_NOSUCHCHANNEL)
-            return
+        for chan in params[0].split(','):
+            if chan[0] != "&":
+                self.sendMessage(irc.ERR_NOSUCHCHANNEL)
+                return
 
-        if params[0] not in self.channels:
-            c = Channel(self, params[0])
-            self.channels[params[0]] = c
-            c.join()
+            if chan not in self.channels:
+                c = Channel(self, chan)
+                self.channels[chan] = c
+                c.join()
 
     def irc_PART(self, prefix, params):
-        if params[0][0] != "&" or params[0] not in self.channels:
-            self.sendMessage(irc.ERR_NOSUCHCHANNEL)
-            return
+        for chan in params[0].split(','):
+            if chan[0] != "&" or chan not in self.channels:
+                self.sendMessage(irc.ERR_NOSUCHCHANNEL)
+                return
 
-        if params[0] in self.channels:
-            self.channels[params[0]].part()
-            del self.channels[params[0]]
+            if chan in self.channels:
+                self.channels[chan].part()
+                del self.channels[chan]
 
     def irc_PING(self, prefix, params):
         self.sendMessage("PONG", params)
