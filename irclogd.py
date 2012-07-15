@@ -154,7 +154,7 @@ class IrclogdServer(irc.IRC):
 
     def irc_JOIN(self, prefix, params):
         for chan in params[0].split(','):
-            if chan[0] != "&":
+            if chan[0] != "&" and chan[0] != "#":
                 self.sendMessage(irc.ERR_NOSUCHCHANNEL)
                 return
 
@@ -165,7 +165,7 @@ class IrclogdServer(irc.IRC):
 
     def irc_PART(self, prefix, params):
         for chan in params[0].split(','):
-            if chan[0] != "&" or chan not in self.channels:
+            if (chan[0] != "&" and chan[0] != "#") or chan not in self.channels:
                 self.sendMessage(irc.ERR_NOSUCHCHANNEL)
                 return
 
