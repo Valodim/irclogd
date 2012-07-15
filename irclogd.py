@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import sys
+
 from twisted.words.protocols import irc
 from twisted.internet import reactor, protocol
 
@@ -16,7 +18,7 @@ class PseudoUser:
         self.fullname = "{}!{}@{}".format(self.name, "unknown", server.hostname)
 
     def command(self, msg):
-        print msg
+        self.msg("Echo: " + str(msg))
 
     def invite(self, channel):
         self.channels[channel.name] = channel
@@ -31,6 +33,17 @@ class PseudoUser:
         # no channels left? destwoy ourself!
         if len(self.channels) is 0:
             self.destroy()
+
+    def msg(self, msg, channel = None):
+        if channel is None:
+            for name in self.channels:
+                self.channels[name].content(msg, self.fullname)
+            return
+
+        # sanity check!
+        if channel.name not in self.channels:
+            print >> sys.stderr, "printing on a chan we're not in??"
+        channel.content(msg, self.fullname)
 
     def destroy(self):
         """
@@ -89,14 +102,25 @@ class Channel:
     def msg(self, msg):
         self.server.sendMessage('NOTICE', irc.lowQuote(msg), frm=self.name)
 
-    def content(self, msg):
-        self.server.sendMessage('PRIVMSG', irc.lowQuote(msg), frm=self.name)
+    def content(self, msg, prefix):
+        self.server.sendMessage('PRIVMSG', irc.lowQuote(msg), frm=self.name, prefix=prefix)
 
     def cmd(self, line):
         line = line.split(None, 1)
+
+        # colon at the end indicates msg to a user
+        if line[0][-1] == ":":
+            if line[0][0:-1] not in self.pusers:
+                print >> sys.stderr, "Msg to nonexitant user: ", line[0][0:-1]
+                return
+            self.pusers[line[0][0:-1]].command(line[1])
+            return
+
+        # otherwise - is it a method?
         method = getattr(self, "cmd_%s" % line[0], None)
         if method is not None:
             method(line[1])
+            return
 
         print 'cmd to chan', line
 
