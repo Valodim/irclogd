@@ -282,6 +282,7 @@ class IrclogdServer(irc.IRC):
 
     def irc_USER(self, prefix, params):
         self.user = params
+        self.sendMessage(irc.RPL_WELCOME, "Welcome to irclogd!")
         self.sendMessage(irc.RPL_MOTDSTART, "- irclogd Message of the day -")
         for l in motd.split("\n"):
             self.sendMessage(irc.RPL_MOTD, l)
