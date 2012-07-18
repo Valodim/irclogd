@@ -327,6 +327,7 @@ class IrclogdServer(irc.IRC):
         for l in motd.split("\n"):
             self.sendMessage(irc.RPL_MOTD, l)
         self.sendMessage(irc.RPL_ENDOFMOTD, "End of /MOTD command")
+        self.sendMessage(irc.RPL_MYINFO, "irclogd", "0.1", "i", "")
 
     def irc_NICK(self, prefix, params):
         self.nick = params[0]
