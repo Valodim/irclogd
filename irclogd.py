@@ -79,8 +79,8 @@ class Channel:
             u.leave(self)
 
     def mode(self):
-        self.server.sendMessage(irc.ERR_NOCHANMODES, "irclogd doesn't support channel modes.", frm=self.name)
-        self.server.sendMessage(irc.RPL_CREATIONTIME, self.name, str(self.creationtime), frm=self.name)
+        self.server.sendMessage(irc.ERR_NOCHANMODES, self.name, "irclogd doesn't support channel modes.")
+        self.server.sendMessage(irc.RPL_CREATIONTIME, self.name, str(self.creationtime))
 
     def topic(self):
         if self.topicmsg is None:
@@ -163,7 +163,7 @@ class IrclogdServer(irc.IRC):
     def irc_JOIN(self, prefix, params):
         for chan in params[0].split(','):
             if chan[0] != "&" and chan[0] != "#":
-                self.sendMessage(irc.ERR_NOSUCHCHANNEL)
+                self.sendMessage(irc.ERR_NOSUCHCHANNEL, chan)
                 return
 
             if chan not in self.channels:
@@ -200,7 +200,7 @@ class IrclogdServer(irc.IRC):
     def irc_NAMES(self, prefix, params):
         for chan in params[0].split(','):
             if chan not in self.channels:
-                self.sendMessage(irc.ERR_NOTONCHANNEL)
+                self.sendMessage(irc.ERR_NOTONCHANNEL, chan)
                 return
 
             self.channels[chan].names()
@@ -227,7 +227,7 @@ class IrclogdServer(irc.IRC):
 
         # channel doesn't exist? (NOT RFC COMPLICANT)
         if params[1] not in self.channels:
-            self.sendMessage(irc.ERR_NOSUCHCHANNEL)
+            self.sendMessage(irc.ERR_NOSUCHCHANNEL, chan)
             return
 
         # already in the channel?
@@ -241,10 +241,11 @@ class IrclogdServer(irc.IRC):
         if params[0] not in self.pusers:
             self.pusers[params[0]] = InputUser(self, params[0])
 
+        # send an ok
+        self.sendMessage(irc.RPL_INVITING, params[1], params[0])
+
         # invite him over
         self.pusers[params[0]].invite(self.channels[params[1]])
-        # send an ok
-        self.sendMessage(irc.RPL_INVITING)
 
     def irc_KICK(self, prefix, params):
         # not enough parameters?
