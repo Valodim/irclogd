@@ -19,8 +19,8 @@ Usage
 
 Start with python irclogd.py for debug mode, or twistd -y irclogd.tac to run as
 a daemon. Connect to running server with any irc client. By default, the server
-will listen only on the localhost interface. To change the listening port or
-the interface, edit irclogd.py (respectively irclogd.tac).
+will listen only on the localhost interface on port 6700. To change the
+listening port or the interface, edit irclogd.py (respectively irclogd.tac).
 
 Join any channel with /join &channel or /join #channel. You can create virtual
 users by inviting them to any (existing) channel with /invite username

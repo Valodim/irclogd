@@ -13,7 +13,7 @@ from User import InputUser
 irc.RPL_CREATIONTIME = "329"
 
 
-port = 6669
+port = 6700
 debug = True
 
 motd = """
