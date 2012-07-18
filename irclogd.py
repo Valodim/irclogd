@@ -2,11 +2,15 @@
 
 import sys
 from datetime import datetime
+import time
 
 from twisted.words.protocols import irc
 from twisted.internet import reactor, protocol
 
 from User import InputUser
+
+# add missing numeric reply
+irc.RPL_CREATIONTIME = "329"
 
 debug = False
 
@@ -38,6 +42,8 @@ class Channel:
         self.name = name
         self.server = server
         self.pusers = { }
+
+        self.creationtime = time.time()
 
     # channel interfacing methods
 
@@ -73,10 +79,12 @@ class Channel:
             u.leave(self)
 
     def mode(self):
-        self.server.sendMessage(irc.RPL_CHANNELMODEIS, self.name, "", "")
+        self.server.sendMessage(irc.ERR_NOCHANMODES, "irclogd doesn't support channel modes.", frm=self.name)
+        self.server.sendMessage(irc.RPL_CREATIONTIME, self.name, str(self.creationtime), frm=self.name)
 
     def topic(self):
-        self.server.sendMessage(irc.RPL_TOPIC, self.name, irc.lowQuote("dummy topic (maybe put some info here?)"))
+        if self.topicmsg is None:
+            self.server.sendMessage(irc.RPL_NOTOPIC, self.name, irc.lowQuote("no topic is set"))
 
     def names(self):
         self.server.sendMessage(irc.RPL_NAMREPLY, self.name, irc.lowQuote(','.join([self.server.nick] + self.pusers.keys() )))
