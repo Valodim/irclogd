@@ -160,7 +160,10 @@ class IrclogdServer(irc.IRC):
             parameter_list[-1] = ":" + parameter_list[-1]
 
         if debug:
-            print kwargs['prefix'], command, parameter_list
+            if command in irc.numeric_to_symbolic:
+                print kwargs['prefix'], '{}[{}]'.format(command, irc.numeric_to_symbolic[command]), ' '.join(parameter_list)
+            else:
+                print kwargs['prefix'], command, ' '.join(parameter_list)
 
         # forwad to parent method
         return irc.IRC.sendMessage(self, command, *parameter_list, **kwargs)
