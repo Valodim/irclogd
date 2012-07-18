@@ -77,8 +77,12 @@ class Channel:
         self.names()
 
     def part(self):
-        for u in self.pusers:
-            u.leave(self)
+        # As long as someone's here, tell them to leave.
+        while len(self.pusers) > 0:
+            # we're relying on this call to work properly.. maybe add infinite loop protection?
+            self.pusers.values()[0].leave(self)
+        # Humphrey - We're leaving!
+        self.server.sendMessage("PART", self.name, frm="", prefix=self.server.nick)
 
     def mode(self, params = None):
         if params is not None and len(params) > 0:
