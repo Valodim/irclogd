@@ -71,6 +71,7 @@ class Channel:
     # channel information callbacks
 
     def join(self):
+        self.server.sendMessage("JOIN", frm=self.name, prefix=self.server.nick)
         self.topic()
         self.names()
 
