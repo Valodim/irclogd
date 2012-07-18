@@ -80,7 +80,10 @@ class Channel:
         for u in self.pusers:
             u.leave(self)
 
-    def mode(self):
+    def mode(self, params = None):
+        if params is not None and len(params) > 0:
+            self.server.sendMessage(irc.ERR_UNKNOWNMODE, params[0], "is unknown mode char to me for {}".format(self.name))
+            return
         self.server.sendMessage(irc.ERR_NOCHANMODES, self.name, "irclogd doesn't support channel modes.")
         self.server.sendMessage(irc.RPL_CREATIONTIME, self.name, str(self.creationtime))
 
@@ -204,7 +207,7 @@ class IrclogdServer(irc.IRC):
                     self.sendMessage(irc.ERR_NOTONCHANNEL, chan)
                     return
 
-                self.channels[chan].mode()
+                self.channels[chan].mode(params[1:])
 
             return
 
