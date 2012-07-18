@@ -184,7 +184,7 @@ class IrclogdServer(irc.IRC):
     def irc_PART(self, prefix, params):
         for chan in params[0].split(','):
             if (chan[0] != "&" and chan[0] != "#") or chan not in self.channels:
-                self.sendMessage(irc.ERR_NOSUCHCHANNEL)
+                self.sendMessage(irc.ERR_NOSUCHCHANNEL, chan)
                 return
 
             if chan in self.channels:
@@ -192,12 +192,23 @@ class IrclogdServer(irc.IRC):
                 del self.channels[chan]
 
     def irc_MODE(self, prefix, params):
-        for chan in params[0].split(','):
-            if chan not in self.channels:
-                self.sendMessage(irc.ERR_NOTONCHANNEL)
-                return
+        # actual user mode?
+        if params[0] == self.nick:
+            self.sendMessage(irc.RPL_UMODEIS, "i")
+            return
 
-            self.channels[chan].mode()
+        # requesting a channel mode?
+        if params[0][0] in [ '#', '&' ]:
+            for chan in params[0].split(','):
+                if chan not in self.channels:
+                    self.sendMessage(irc.ERR_NOTONCHANNEL, chan)
+                    return
+
+                self.channels[chan].mode()
+
+            return
+
+        # wants to know mode of puser?
 
     def irc_TOPIC(self, prefix, params):
         if len(params) == 0 or param[0] not in self.channels:
@@ -288,8 +299,11 @@ class IrclogdServer(irc.IRC):
         # missing RFC: multicast
 
         # send to channel?
-        if params[0] in self.channels:
-            self.channels[params[0]].cmd(params[-1])
+        if params[0][0] in [ '#', '&' ]:
+            if params[0] in self.channels:
+                self.channels[params[0]].cmd(params[-1])
+            else:
+                self.sendMessage(irc.ERR_CANNOTSENDTOCHAN, params[0], "Cannot send to channel.")
             return
 
         # send to user?
