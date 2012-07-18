@@ -12,9 +12,9 @@ from User import InputUser
 # add missing numeric reply
 irc.RPL_CREATIONTIME = "329"
 
-debug = False
 
 port = 6669
+debug = True
 
 motd = """
 This is irclogd, started at {starttime}, listening on {port}.
@@ -133,7 +133,7 @@ class IrclogdServer(irc.IRC):
     """
 
     def dataReceived(self, data):
-        if debug:
+        if self.factory.debug:
             print data
         irc.IRC.dataReceived(self, data)
 
@@ -166,7 +166,7 @@ class IrclogdServer(irc.IRC):
         if len(parameter_list) > 0:
             parameter_list[-1] = ":" + parameter_list[-1]
 
-        if debug:
+        if self.factory.debug:
             if command in irc.numeric_to_symbolic:
                 print kwargs['prefix'], '{}[{}]'.format(command, irc.numeric_to_symbolic[command]), ' '.join(parameter_list)
             else:
@@ -347,7 +347,7 @@ class IrclogdServer(irc.IRC):
         print >> sys.stderr, "unkown msg", prefix, command, params
 
 if __name__ == "__main__":
-    factory = protocol.Factory()
+    factory.debug = debug
     factory.protocol = IrclogdServer
 
     reactor.listenTCP(port, factory, interface='localhost')
