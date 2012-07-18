@@ -2,11 +2,12 @@ irclogd
 =======
 
 This is a simple irc gateway server, which can be used to listen for data from
-various sources.
+various sources. It is written in python using the Twisted framework, and thus
+depends on python-twisted and python-twisted-words.
 
-There is no buffering or state, data is only immediately forwarded. To add
-buffering capabilities, connect to the irc server using a bouncer. I recommend
-znc.
+There is no buffering or state in the server - data is only immediately
+forwarded. To add buffering capabilities, connect to the irc server using a
+bouncer. I recommend znc.
 
 Supported sources at this point:
  - udp
@@ -16,23 +17,29 @@ Supported sources at this point:
 Usage
 -----
 
-Start with python irclogd.py, connect to running server with any irc client. To
-change the listening port, edit irclogd.py.
+Start with python irclogd.py for debug mode, or twistd -y irclogd.tac to run as
+a daemon. Connect to running server with any irc client. By default, the server
+will listen only on the localhost interface. To change the listening port or
+the interface, edit irclogd.py (respectively irclogd.tac).
 
 Join any channel with /join &channel or /join #channel. You can create virtual
-users by inviting them to any channel with /invite username &channel. You can
-remove them using /kick username. Virtual users can be in multiple channels, and
-will be automatically removed when they aren't in any.
+users by inviting them to any (existing) channel with /invite username
+&channel. You can remove them with /kick. Virtual users can be in multiple
+channels, and will be automatically destroyed when they aren't in any.
 
 Each virtual user can have an input source, and will report the input from this
 source to all channels it is in.
+
+The daemon keeps no state, once you disconnect all channels and virtual users
+are gone. To get a persistent configuration, the client's (or bouncer's)
+perform feature should be used to consecutively JOIN, INVITE and PRIVMSG.
 
 Virtual User Commands
 ---------------------
 
 Virtual users support a number of commands. They can be either sent in any
 channel the user is in by directing it to them by name with a colon suffix, or
-as a privmsg.
+directly using a privmsg.
 
 Available commands are:
  - input: set an input source to listen on (see below)
