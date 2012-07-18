@@ -44,6 +44,7 @@ class Channel:
         self.pusers = { }
 
         self.creationtime = time.time()
+        self.topicmsg = None
 
     # channel interfacing methods
 
@@ -83,8 +84,13 @@ class Channel:
         self.server.sendMessage(irc.ERR_NOCHANMODES, self.name, "irclogd doesn't support channel modes.")
         self.server.sendMessage(irc.RPL_CREATIONTIME, self.name, str(self.creationtime))
 
-    def topic(self):
-        if self.topicmsg is None:
+    def topic(self, t = None):
+        if t is not None:
+            self.topicmsg = str(t) if len(t) > 0 else None
+
+        if self.topicmsg is not None:
+            self.server.sendMessage(irc.RPL_TOPIC, self.name, irc.lowQuote(self.topicmsg))
+        else:
             self.server.sendMessage(irc.RPL_NOTOPIC, self.name, irc.lowQuote("no topic is set"))
 
     def names(self):
@@ -191,12 +197,12 @@ class IrclogdServer(irc.IRC):
             self.channels[chan].mode()
 
     def irc_TOPIC(self, prefix, params):
-        for chan in params[0].split(','):
-            if chan not in self.channels:
-                self.sendMessage(irc.ERR_NOTONCHANNEL)
-                return
+        if len(params) == 0 or param[0] not in self.channels:
+            self.sendMessage(irc.ERR_NOTONCHANNEL, chan)
+            return
 
-            self.channels[chan].topic()
+        # if there is a second argument, set topic. otherwise just return it (no argument)
+        self.channels[param[0]].topic(params[1] if len(params) > 1 else None)
 
     def irc_NAMES(self, prefix, params):
         for chan in params[0].split(','):
