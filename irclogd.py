@@ -200,8 +200,15 @@ class IrclogdServer(irc.IRC):
     # PseudoUser management callbacks
 
     def irc_WHO(self, prefix, params):
+        if params[0] == self.nick:
+            self.sendMessage(irc.RPL_WHOREPLY, "none", self.user[1], self.user[2], self.hostname, self.nick, "H", "0 {}".format(self.user[3]))
+            self.sendMessage(irc.RPL_ENDOFWHO)
         if params[0] in self.pusers:
             self.pusers[params[0]].who()
+            return
+        if params[0] in self.channels:
+            for u in self.channels[params[0]].pusers:
+                self.pusers[u].who()
             return
 
     def irc_INVITE(self, prefix, params):
@@ -275,7 +282,7 @@ class IrclogdServer(irc.IRC):
         self.sendMessage(irc.ERR_NORECIPIENT)
 
     def irc_PING(self, prefix, params):
-        self.sendMessage("PONG", params)
+        self.sendMessage("PONG", params[-1])
 
     def irc_PONG(self, prefix, params):
         pass

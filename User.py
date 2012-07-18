@@ -103,7 +103,7 @@ class PseudoUser:
         channel.notice(msg, self.fullname())
 
     def who(self):
-        self.server.sendMessage(irc.RPL_WHOREPLY, self.channels.keys()[0], "pseudo", self.server.hostname, self.server.hostname, self.name, "H", "1 {}".format("PseudoUser"))
+        self.server.sendMessage(irc.RPL_WHOREPLY, self.channels.keys()[0], "pseudo", self.server.hostname, self.server.hostname, self.name, "H", "0 {}".format("PseudoUser"))
         self.server.sendMessage(irc.RPL_ENDOFWHO)
 
     def fullname(self):
