@@ -1,10 +1,9 @@
 # You can run this .tac file directly with:
 #    twistd -ny irclogd.tac
 
-import os
 from twisted.application import service, internet
 from twisted.internet import protocol
-import irclogd
+from irclogd import irclogd
 
 port = 6700
 debug = False

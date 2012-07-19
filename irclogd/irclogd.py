@@ -7,7 +7,7 @@ import time
 from twisted.words.protocols import irc
 from twisted.internet import reactor, protocol
 
-from User import InputUser
+import user
 
 # add missing numeric reply
 irc.RPL_CREATIONTIME = "329"
@@ -271,7 +271,7 @@ class IrclogdServer(irc.IRC):
 
         # does the pseudouser exist? if not, create him
         if params[0] not in self.pusers:
-            self.pusers[params[0]] = InputUser(self, params[0])
+            self.pusers[params[0]] = user.InputUser(self, params[0])
 
         # send an ok
         self.sendMessage(irc.RPL_INVITING, params[1], params[0])
