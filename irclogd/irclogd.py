@@ -351,6 +351,7 @@ class IrclogdServer(irc.IRC):
         print >> sys.stderr, "unkown msg", prefix, command, params
 
 if __name__ == "__main__":
+    factory = protocol.Factory()
     factory.debug = debug
     factory.protocol = IrclogdServer
 
