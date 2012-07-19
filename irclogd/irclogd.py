@@ -223,7 +223,7 @@ class IrclogdServer(irc.IRC):
 
     def irc_TOPIC(self, prefix, params):
         if len(params) == 0 or params[0] not in self.channels:
-            self.sendMessage(irc.ERR_NOTONCHANNEL, chan)
+            self.sendMessage(irc.ERR_NOTONCHANNEL, params[0])
             return
 
         # if there is a second argument, set topic. otherwise just return it (no argument)
@@ -259,7 +259,7 @@ class IrclogdServer(irc.IRC):
 
         # channel doesn't exist? (NOT RFC COMPLICANT)
         if params[1] not in self.channels:
-            self.sendMessage(irc.ERR_NOSUCHCHANNEL, chan)
+            self.sendMessage(irc.ERR_NOSUCHCHANNEL, params[1])
             return
 
         # already in the channel?
