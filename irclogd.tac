@@ -23,3 +23,5 @@ application = service.Application("irclogd")
 # attach the service to its parent application
 service = getService()
 service.setServiceParent(application)
+
+# vim:filetype=python
