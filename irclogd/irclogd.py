@@ -344,8 +344,18 @@ class IrclogdServer(irc.IRC):
         self.nick = params[0]
 
     def irc_QUIT(self, prefix, params):
-        self.sendMessage("QUIT", *params)
+        """
+            When this method is called, the user leaves the server, making this
+            connection (and all its state) void. Most importantly, we need to
+            make sure all pusers are destroy()ed, to clean up references in the
+            reactor.
+        """
+        self.sendMessage("QUIT", *params, prefix=self.nick)
         self.transport.loseConnection()
+
+        while len(self.pusers) > 0:
+            # we're relying on this call to work properly.. maybe add infinite loop protection?
+            self.pusers.values()[0].destroy()
 
     def irc_unknown(self, prefix, command, params):
         print >> sys.stderr, "unkown msg", prefix, command, params
